@@ -58,56 +58,20 @@ def process_query(df, knowledge_base, query, llm):
 
 
 def generate_recipe(prompt, llm):
-    # Format the prompt to guide the LLM in providing a concise, structured recipe
+    # Generalized prompt to guide the LLM in providing a structured recipe
     formatted_prompt = (
-        "Generate a warm, friendly, and concise recipe for the following request. "
-        "Include the ingredients, equipment, and step-by-step instructions, as well as any useful tips. "
-        "Please keep the response free from unnecessary details or repeated information.\n\n"
-        "{}"
+        "You are a specialized recipe generator. Your task is to generate a detailed yet concise recipe based on the user's request. Ensure your response includes the following sections:\n\n"
+        "- Ingredients: List all necessary ingredients with quantities.\n"
+        "- Equipment: List all required equipment.\n"
+        "- Instructions: Provide clear, step-by-step cooking instructions.\n"
+        "- Tips: Offer any useful tips, variations, or serving suggestions.\n\n"
+        "Do not include any template, formatting instructions, or extra content in the response. Just provide the recipe as described.\n\n"
+        "Request: {}"
     ).format(prompt)
-    
+
     # Call the LLM with the formatted prompt
-    raw_response = llm(formatted_prompt)
-    
-    # Remove the instructional lines using regex
-    regex_pattern = r"(Generate a warm, friendly, and concise recipe for the following request\.|Include the ingredients, equipment, and step-by-step instructions, as well as any useful tips\.|Please keep the response free from unnecessary details or repeated information\.)"
-    cleaned_response = re.sub(regex_pattern, '', raw_response).strip()
-    
-    # Ensure the prompt itself isn't visible in the output
-    cleaned_response = cleaned_response.replace(prompt, "").strip()
-
-    # Check if the response seems incomplete or if the necessary sections are missing
-    sections = ["Ingredients:", "Equipment:", "Instructions:", "Tips:"]
-    missing_sections = [section for section in sections if section not in cleaned_response]
-
-    if len(cleaned_response) < 200 or missing_sections:
-        additional_prompt = (
-            "It seems some parts of the recipe might be missing or incomplete. Could you please provide the missing details or "
-            "expand on the recipe to include the following sections: {}?"
-        ).format(", ".join(missing_sections))
-        
-        additional_response = llm(additional_prompt)
-        cleaned_response += "\n" + additional_response
-
-    # Final formatting to ensure no repetitions and correct output structure
-    lines = cleaned_response.splitlines()
-    seen_lines = set()
-    final_response = []
-    for line in lines:
-        if line.strip() and line not in seen_lines:
-            final_response.append(line)
-            seen_lines.add(line)
-    
-    final_output = "\n".join(final_response).strip()
-
-    # Ensure the final response is friendly and well-formatted
-    if final_output and final_output[-1] != "!":
-        final_output += "!"
-
-    final_output = f"Here's a lovely recipe just for you:\n\n{final_output}\n\nEnjoy your delicious creation!"
-
-    return final_output
-
+    response = llm(formatted_prompt)
+    return response
 
 
 
