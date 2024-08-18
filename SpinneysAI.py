@@ -59,45 +59,20 @@ def process_query(df, knowledge_base, query, llm):
 
 
 def generate_recipe(prompt, llm):
-    # Professional and controlled prompt to avoid extraneous content in the response
+    # Generalized prompt to guide the LLM in providing a structured recipe
     formatted_prompt = (
-        "Generate a professional and structured recipe for the following request. "
-        "Ensure the recipe includes a clear list of ingredients, necessary equipment, "
-        "and step-by-step instructions. Avoid any unnecessary repetition or irrelevant details. "
-        "Keep the tone warm and inviting.\n\n"
+        "You are a specialized recipe generator. Your task is to generate a detailed yet concise recipe based on the user's request. Ensure your response includes the following sections:\n\n"
+        "- Ingredients: List all necessary ingredients with quantities.\n"
+        "- Equipment: List all required equipment.\n"
+        "- Instructions: Provide clear, step-by-step cooking instructions.\n"
+        "- Tips: Offer any useful tips, variations, or serving suggestions.\n\n"
+        "Do not include any template, formatting instructions, or extra content in the response. Just provide the recipe as described.\n\n"
         "Request: {}"
     ).format(prompt)
-    
+
     # Call the LLM with the formatted prompt
-    raw_response = llm(formatted_prompt)
-    
-    # Identify the start of the recipe to remove any unwanted introduction or extra content
-    start_index = raw_response.find("Ingredients:")
-    if start_index == -1:
-        start_index = 0  # Start from the beginning if "Ingredients" is not found
-    final_response = raw_response[start_index:].strip()
-    
-    # Clean up the response by removing repeated lines or phrases
-    lines = final_response.splitlines()
-    seen_lines = set()
-    cleaned_response = []
-    for line in lines:
-        cleaned_line = line.strip()
-        if cleaned_line and cleaned_line not in seen_lines:
-            cleaned_response.append(cleaned_line)
-            seen_lines.add(cleaned_line)
-    
-    # Ensure the response is well-formatted with proper section headers
-    formatted_response = "\n".join(cleaned_response)
-    
-    # Compile the cleaned and formatted response
-    final_response = (
-        "Here's your recipe:\n\n"
-        "{}\n\n"
-        "Enjoy your meal!"
-    ).format(formatted_response)
-    
-    return final_response
+    response = llm(formatted_prompt)
+    return response
 
 
 
