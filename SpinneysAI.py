@@ -58,6 +58,8 @@ def process_query(df, knowledge_base, query, llm):
 
 
 
+import re
+
 def generate_recipe(prompt, llm):
     # Simplified and controlled prompt to avoid extraneous content in the response
     formatted_prompt = (
@@ -68,24 +70,28 @@ def generate_recipe(prompt, llm):
     # Call the LLM with the formatted prompt
     raw_response = llm(formatted_prompt)
     
+    # Remove the initial template text using regex
+    cleaned_response = re.sub(r'Provide a concise.*?Request:.*?\n', '', raw_response, flags=re.S).strip()
+
     # Identify the start of the recipe to remove any unwanted introduction or extra content
-    start_index = raw_response.find("Ingredients:")
+    start_index = cleaned_response.find("Ingredients:")
     if start_index == -1:
         start_index = 0  # Start from the beginning if "Ingredients" is not found
-    final_response = raw_response[start_index:].strip()
+    final_response = cleaned_response[start_index:].strip()
 
     # Remove any repeated lines or phrases to clean the response
     lines = final_response.splitlines()
     seen_lines = set()
     cleaned_response = []
     for line in lines:
-        if line.strip() and line not in seen_lines:
-            cleaned_response.append(line)
-            seen_lines.add(line)
+        clean_line = line.strip()
+        if clean_line and clean_line not in seen_lines:
+            cleaned_response.append(clean_line)
+            seen_lines.add(clean_line)
     
-    # Compile the cleaned response and add a friendly touch
-    cleaned_response = "\n".join(cleaned_response)
-    final_response = f"Here's a lovely recipe just for you:\n\n{cleaned_response}\n\nEnjoy your delicious creation!"
+    # Compile the cleaned response and ensure proper formatting
+    formatted_response = "\n".join(cleaned_response)
+    final_response = f"Here's a lovely recipe just for you:\n\n{formatted_response}\n\nEnjoy your delicious creation!"
     
     return final_response
 
