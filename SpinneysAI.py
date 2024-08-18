@@ -23,7 +23,7 @@ def get_llm():
     # Provide your API key directly here
     api_key = "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"
     return HuggingFaceHub(
-        repo_id="gpt2-xl",
+        repo_id="Meta-Llama-3-8B-Instruct",
         model_kwargs={"temperature": 0.5, "max_length": 1024},
         huggingfacehub_api_token=api_key
     )
