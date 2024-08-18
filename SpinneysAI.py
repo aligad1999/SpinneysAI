@@ -59,20 +59,40 @@ def process_query(df, knowledge_base, query, llm):
 
 
 def generate_recipe(prompt, llm):
-    # Generalized prompt to guide the LLM in providing a structured recipe
+    # Refined prompt to guide the LLM in providing a clean, professional recipe
     formatted_prompt = (
-        "You are a specialized recipe generator. Your task is to generate a detailed yet concise recipe based on the user's request. Ensure your response includes the following sections:\n\n"
-        "- Ingredients: List all necessary ingredients with quantities.\n"
-        "- Equipment: List all required equipment.\n"
-        "- Instructions: Provide clear, step-by-step cooking instructions.\n"
-        "- Tips: Offer any useful tips, variations, or serving suggestions.\n\n"
-        "Do not include any template, formatting instructions, or extra content in the response. Just provide the recipe as described.\n\n"
+        "You are a professional chef and recipe generator. Your task is to create a detailed, clear, and concise recipe based on the user's request. Please ensure the response is well-structured and includes the following sections without any additional commentary:\n\n"
+        "- **Ingredients**: List all necessary ingredients with exact quantities.\n"
+        "- **Equipment**: List all required equipment.\n"
+        "- **Instructions**: Provide clear, step-by-step cooking instructions.\n"
+        "- **Tips**: Offer any useful tips, variations, or serving suggestions.\n\n"
+        "Please deliver the recipe in a professional tone, free of any unnecessary content or extraneous formatting instructions. Focus solely on the recipe details.\n\n"
         "Request: {}"
     ).format(prompt)
 
     # Call the LLM with the formatted prompt
     response = llm(formatted_prompt)
-    return response
+
+    # Clean and structure the response
+    sections = ["Ingredients", "Equipment", "Instructions", "Tips"]
+    final_response = []
+
+    for section in sections:
+        start_index = response.find(f"**{section}**:")
+        if start_index != -1:
+            end_index = len(response)
+            for next_section in sections[sections.index(section) + 1:]:
+                next_index = response.find(f"**{next_section}**:", start_index)
+                if next_index != -1:
+                    end_index = min(end_index, next_index)
+            section_content = response[start_index:end_index].strip()
+            final_response.append(section_content)
+
+    # Join all sections to form the final structured recipe
+    formatted_response = "\n\n".join(final_response)
+
+    # Return the cleaned and formatted recipe
+    return f"Here is your recipe:\n\n{formatted_response}\n\nEnjoy your meal!"
 
 
 
