@@ -58,44 +58,46 @@ def process_query(df, knowledge_base, query, llm):
 
 
 
-import re
-
 def generate_recipe(prompt, llm):
-    # Simplified and controlled prompt to avoid extraneous content in the response
+    # Professional and controlled prompt to avoid extraneous content in the response
     formatted_prompt = (
-        "Provide a concise and friendly recipe for the following request. Include the ingredients, equipment, and step-by-step instructions, along with any useful tips. Make sure the response is warm, friendly, and free of repetitions or irrelevant details.\n\n"
+        "Generate a professional and structured recipe for the following request. "
+        "Ensure the recipe includes a clear list of ingredients, necessary equipment, "
+        "and step-by-step instructions. Avoid any unnecessary repetition or irrelevant details. "
+        "Keep the tone warm and inviting.\n\n"
         "Request: {}"
     ).format(prompt)
     
     # Call the LLM with the formatted prompt
     raw_response = llm(formatted_prompt)
     
-    # Remove the initial template text using regex
-    cleaned_response = re.sub(r'Provide a concise.*?Request:.*?\n', '', raw_response, flags=re.S).strip()
-
     # Identify the start of the recipe to remove any unwanted introduction or extra content
-    start_index = cleaned_response.find("Ingredients:")
+    start_index = raw_response.find("Ingredients:")
     if start_index == -1:
         start_index = 0  # Start from the beginning if "Ingredients" is not found
-    final_response = cleaned_response[start_index:].strip()
-
-    # Remove any repeated lines or phrases to clean the response
+    final_response = raw_response[start_index:].strip()
+    
+    # Clean up the response by removing repeated lines or phrases
     lines = final_response.splitlines()
     seen_lines = set()
     cleaned_response = []
     for line in lines:
-        clean_line = line.strip()
-        if clean_line and clean_line not in seen_lines:
-            cleaned_response.append(clean_line)
-            seen_lines.add(clean_line)
+        cleaned_line = line.strip()
+        if cleaned_line and cleaned_line not in seen_lines:
+            cleaned_response.append(cleaned_line)
+            seen_lines.add(cleaned_line)
     
-    # Compile the cleaned response and ensure proper formatting
+    # Ensure the response is well-formatted with proper section headers
     formatted_response = "\n".join(cleaned_response)
-    final_response = f"Here's a lovely recipe just for you:\n\n{formatted_response}\n\nEnjoy your delicious creation!"
+    
+    # Compile the cleaned and formatted response
+    final_response = (
+        "Here's your recipe:\n\n"
+        "{}\n\n"
+        "Enjoy your meal!"
+    ).format(formatted_response)
     
     return final_response
-
-
 
 
 
