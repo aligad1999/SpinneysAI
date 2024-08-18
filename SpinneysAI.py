@@ -57,21 +57,38 @@ def process_query(df, knowledge_base, query, llm):
         
 
 
+
 def generate_recipe(prompt, llm):
-    # Generalized prompt to guide the LLM in providing a structured recipe
+    # Generalized prompt to guide the LLM, with a focus on correctness and conciseness
     formatted_prompt = (
-        "You are a specialized recipe generator. Your task is to generate a detailed yet concise recipe based on the user's request. Ensure your response includes the following sections:\n\n"
-        "- Ingredients: List all necessary ingredients with quantities.\n"
-        "- Equipment: List all required equipment.\n"
-        "- Instructions: Provide clear, step-by-step cooking instructions.\n"
-        "- Tips: Offer any useful tips, variations, or serving suggestions.\n\n"
-        "Do not include any template, formatting instructions, or extra content in the response. Just provide the recipe as described.\n\n"
+        "Please provide a clear, concise, and accurate recipe for the following request. The response should include the necessary ingredients, equipment, step-by-step instructions, and any useful tips. Keep it warm and friendly, and ensure there are no repetitions or irrelevant details.\n\n"
         "Request: {}"
     ).format(prompt)
-
+    
     # Call the LLM with the formatted prompt
-    response = llm(formatted_prompt)
-    return response
+    raw_response = llm(formatted_prompt)
+    
+    # Post-process to remove any extraneous content that might be included in the response
+    start_index = raw_response.find("Ingredients:")
+    if start_index == -1:
+        start_index = 0  # In case the model doesn't include "Ingredients" header
+    final_response = raw_response[start_index:].strip()
+
+    # Remove any repeated lines or phrases
+    lines = final_response.splitlines()
+    seen_lines = set()
+    cleaned_response = []
+    for line in lines:
+        if line.strip() and line not in seen_lines:
+            cleaned_response.append(line)
+            seen_lines.add(line)
+    
+    # Add an emotional touch to the response
+    cleaned_response = "\n".join(cleaned_response)
+    final_response = f"Here's a lovely recipe just for you:\n\n{cleaned_response}\n\nEnjoy your delicious creation!"
+    
+    return final_response
+
 
 
 
