@@ -76,14 +76,11 @@ def generate_recipe(prompt, llm):
     formatted_response = "\n\n".join(final_response)
     return f"Here is your recipe:\n\n{formatted_response}\n\nEnjoy your meal!"
 
-def handle_prompt(prompt, df, knowledge_base, llm, conversation_chain):
-    if prompt.lower().startswith("search for"):
-        query = prompt[len("search for"):].strip()  # Extract the query after "search for"
-        return process_query(df, knowledge_base, query, llm)
+def handle_prompt(prompt, df, knowledge_base, llm):
+    if prompt.lower().startswith("how to"):
+        return generate_recipe(prompt, llm)
     else:
-        # For all other prompts, use the ConversationChain
-        response = conversation_chain.predict(input=prompt)
-        return response
+        return process_query(df, knowledge_base, prompt,llm)
 
 if __name__ == '__main__':
     st.set_page_config(page_title="Chat with Spinneys AI", page_icon=":shark:", layout="wide")
@@ -93,34 +90,24 @@ if __name__ == '__main__':
 
     with col1:
         st.header("Upload CSV")
+
+        # Check if the CSV data is already in session_state
         if 'df' not in st.session_state or 'knowledge_base' not in st.session_state:
             csv_file = st.file_uploader("Upload your CSV File", type="csv")
+            
             if csv_file is not None:
                 with st.spinner("Processing..."):
                     df, knowledge_base = process_csv(csv_file)
                     st.session_state.df = df
                     st.session_state.knowledge_base = knowledge_base
                     st.session_state.llm = get_llm()
-                    st.session_state.conversation_chain = ConversationChain(
-                        prompt=PromptTemplate(
-                            input_variables=["history", "input"],
-                            template="""The following is a friendly conversation between a human and an AI. The AI is talkative and provides lots of specific details from its context. If the AI does not know the answer to a question, it truthfully says it does not know.
-
-Current conversation:
-{history}
-Human: {input}
-AI Assistant:"""
-                        ),
-                        llm=st.session_state.llm,
-                        verbose=True,
-                        memory=ConversationBufferMemory(ai_prefix="AI Assistant")
-                    )
                 st.success("CSV successfully uploaded and processed!")
         else:
             st.write("CSV file already uploaded and processed!")
 
     with col2:
         st.header("Chat")
+        
         if 'messages' not in st.session_state:
             st.session_state.messages = []
 
@@ -134,13 +121,7 @@ AI Assistant:"""
                 st.markdown(prompt)
 
             if 'df' in st.session_state:
-                response = handle_prompt(
-                    prompt,
-                    st.session_state.df,
-                    st.session_state.knowledge_base,
-                    st.session_state.llm,
-                    st.session_state.conversation_chain
-                )
+                response = handle_prompt(prompt, st.session_state.df, st.session_state.knowledge_base, st.session_state.llm)
                 with st.chat_message("assistant"):
                     st.markdown(response)
                 st.session_state.messages.append({"role": "assistant", "content": response})
