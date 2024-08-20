@@ -8,6 +8,7 @@ from fuzzywuzzy import process
 from langchain.chains import ConversationChain
 from langchain.memory import ConversationBufferMemory
 from langchain_core.prompts.prompt import PromptTemplate
+from langchain_community.embeddings import HuggingFaceEmbeddings
 
 def process_csv(file):
     df = pd.read_csv(file, encoding="latin-1")
