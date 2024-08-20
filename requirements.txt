@@ -8,3 +8,5 @@ optimum==1.13.1
 streamlit==1.37.1
 tokenizers>=0.13.2,<0.14
 chromadb==0.4.10
+transformers==4.33.2
+tokenizers>=0.13.2,<0.14
