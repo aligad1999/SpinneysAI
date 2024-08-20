@@ -3,8 +3,8 @@ transformers==4.33.2
 langchain==0.0.299
 langchain_core==0.1.5
 langchain_community==0.0.8
-chromadb==0.4.10
 sentence_transformers==2.2.2
-tokenizers==0.12.1
 optimum==1.13.1
 streamlit==1.37.1
+tokenizers>=0.13.2,<0.14
+chromadb==0.4.10
