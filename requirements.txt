@@ -1,13 +1,11 @@
- PyPDF2
-streamlit
-langchain
-faiss-cpu
-huggingface-hub
-transformers
-sentence-transformers
-torch
-requests
-InstructorEmbedding
-langchain-community
-fuzzywuzzy
-python-Levenshtein
+pandas==2.0.3
+streamlit==1.23.0
+torch==2.0.1
+transformers==4.33.2
+langchain==0.0.299
+chromadb==0.4.10
+xformers==0.0.21
+sentence_transformers==2.2.2
+fuzzywuzzy==0.18.0
+huggingface-hub==0.17.0
+faiss-cpu==1.7.4
