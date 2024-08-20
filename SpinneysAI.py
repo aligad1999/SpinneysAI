@@ -11,7 +11,9 @@ from transformers import (
     GenerationConfig,
     pipeline,
 )
-from langchain import HuggingFacePipeline, PromptTemplate
+from langchain_community.llms.huggingface_pipeline import HuggingFacePipeline
+from langchain_core.prompts import PromptTemplate
+
 
 def create_model_and_tokenizer():
     model_name = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
