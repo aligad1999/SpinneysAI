@@ -8,7 +8,6 @@ from fuzzywuzzy import process
 from langchain.chains import ConversationChain
 from langchain.memory import ConversationBufferMemory
 from langchain_core.prompts.prompt import PromptTemplate
-from langchain_community.embeddings import HuggingFaceEmbeddings
 
 def process_csv(file):
     df = pd.read_csv(file, encoding="latin-1")
@@ -78,11 +77,12 @@ def generate_recipe(prompt, llm):
     return f"Here is your recipe:\n\n{formatted_response}\n\nEnjoy your meal!"
 
 def handle_prompt(prompt, df, knowledge_base, llm, conversation_chain):
-    if prompt.lower().startswith("how to"):
-        return generate_recipe(prompt, llm)
+    if prompt.lower().startswith("search for"):
+        query = prompt[len("search for"):].strip()  # Extract the query after "search for"
+        return process_query(df, knowledge_base, query, llm)
     else:
-        response = process_query(df, knowledge_base, prompt, llm)
-        conversation_chain.predict(input=prompt)
+        # For all other prompts, use the ConversationChain
+        response = conversation_chain.predict(input=prompt)
         return response
 
 if __name__ == '__main__':
