@@ -74,7 +74,7 @@ def generate_recipe(prompt, llm):
             final_response.append(section_content)
 
     formatted_response = "\n\n".join(final_response)
-    return f"Here is your recipe:\n\n{formatted_response}\n\nEnjoy your meal!"
+    return f"Here is your recipe:\n\n{response}\n\nEnjoy your meal!"
 
 def handle_prompt(prompt, df, knowledge_base, llm):
     if prompt.lower().startswith("how to"):
