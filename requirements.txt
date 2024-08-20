@@ -1,12 +1,12 @@
 torch==2.4.0
 transformers==4.33.2
 langchain==0.0.299
-langchain_core==0.0.7
+langchain_core==0.1.5  # Updated to be compatible with langchain_community
 langchain_community==0.0.8
 chromadb==0.4.10
 xformers==0.0.21
 sentence_transformers==2.2.2
-tokenizers==0.13.3  # Adjusted to a compatible version
+tokenizers==0.13.3
 optimum==1.13.1
 auto-gptq==0.4.2
 streamlit==1.37.1
