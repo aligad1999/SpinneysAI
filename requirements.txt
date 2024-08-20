@@ -7,3 +7,4 @@ python-Levenshtein
 huggingface-hub
 sentence-transformers
 faiss-cpu
+langchain-community
