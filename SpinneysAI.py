@@ -1,50 +1,13 @@
-import os
 import pandas as pd
 import streamlit as st
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain import FAISS
-from langchain.chains import RetrievalQA
+from langchain.llms import HuggingFaceHub
+import fuzzywuzzy
 from fuzzywuzzy import process
-from transformers import (
-    AutoModelForCausalLM,
-    AutoTokenizer,
-    GenerationConfig,
-    pipeline,
-)
-from langchain_community.llms.huggingface_pipeline import HuggingFacePipeline
-from langchain_core.prompts import PromptTemplate
-
-
-def create_model_and_tokenizer():
-    model_name = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-    model = AutoModelForCausalLM.from_pretrained(
-        model_name,
-        trust_remote_code=True,
-        device_map="auto",
-    )
-
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    tokenizer.pad_token = tokenizer.eos_token
-    tokenizer.padding_side = "right"
-
-    generation_config = GenerationConfig(
-        max_new_tokens=256,
-        temperature=0.1,
-        top_p=0.9,
-        do_sample=True,
-        repetition_penalty=1.1
-    )
-
-    text_pipeline = pipeline(
-        "text-generation",
-        model=model,
-        tokenizer=tokenizer,
-        return_full_text=True,
-        generation_config=generation_config,
-    )
-    llm = HuggingFacePipeline(pipeline=text_pipeline)
-
-    return llm
+from langchain.chains import ConversationChain
+from langchain.memory import ConversationBufferMemory
+from langchain_core.prompts.prompt import PromptTemplate
 
 def process_csv(file):
     df = pd.read_csv(file, encoding="latin-1")
@@ -54,7 +17,15 @@ def process_csv(file):
     knowledge_base = FAISS.from_texts(texts, embeddings)
     return df, knowledge_base
 
-def process_query(df, knowledge_base, query):
+def get_llm():
+    api_key = "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"
+    return HuggingFaceHub(
+        repo_id="gpt2-xl",
+        model_kwargs={"temperature": 0.5, "max_length": 1024},
+        huggingfacehub_api_token=api_key
+    )
+
+def process_query(df, knowledge_base, query, llm):
     docs = knowledge_base.similarity_search(query, k=10)
     results = []
     seen_titles = set()
@@ -77,28 +48,41 @@ def process_query(df, knowledge_base, query):
         return "No matching products found."
 
 def generate_recipe(prompt, llm):
-    template = """
-    You are a professional chef and recipe generator. Your task is to create a detailed, clear, and concise recipe based on the user's request. Please ensure the response is well-structured and includes the following sections without any additional commentary:
+    formatted_prompt = (
+        "You are a professional chef and recipe generator. Your task is to create a detailed, clear, and concise recipe based on the user's request. Please ensure the response is well-structured and includes the following sections without any additional commentary:\n\n"
+        "- **Ingredients**: List all necessary ingredients with exact quantities.\n"
+        "- **Equipment**: List all required equipment.\n"
+        "- **Instructions**: Provide clear, step-by-step cooking instructions.\n"
+        "- **Tips**: Offer any useful tips, variations, or serving suggestions.\n\n"
+        "Please deliver the recipe in a professional tone, free of any unnecessary content or extraneous formatting instructions. Focus solely on the recipe details.\n\n"
+        "Request: {}"
+    ).format(prompt)
 
-    - **Ingredients**: List all necessary ingredients with exact quantities.
-    - **Equipment**: List all required equipment.
-    - **Instructions**: Provide clear, step-by-step cooking instructions.
-    - **Tips**: Offer any useful tips, variations, or serving suggestions.
-
-    Please deliver the recipe in a professional tone, free of any unnecessary content or extraneous formatting instructions. Focus solely on the recipe details.
-
-    Request: {question}
-    """
-    prompt_template = PromptTemplate(template=template, input_variables=["question"])
-    formatted_prompt = prompt_template.format(question=prompt)
     response = llm(formatted_prompt)
-    return response[0]['generated_text'] if isinstance(response, list) else response
+    sections = ["Ingredients", "Equipment", "Instructions", "Tips"]
+    final_response = []
 
-def handle_prompt(prompt, df, knowledge_base, llm):
+    for section in sections:
+        start_index = response.find(f"**{section}**:")
+        if start_index != -1:
+            end_index = len(response)
+            for next_section in sections[sections.index(section) + 1:]:
+                next_index = response.find(f"**{next_section}**:", start_index)
+                if next_index != -1:
+                    end_index = min(end_index, next_index)
+            section_content = response[start_index:end_index].strip()
+            final_response.append(section_content)
+
+    formatted_response = "\n\n".join(final_response)
+    return f"Here is your recipe:\n\n{formatted_response}\n\nEnjoy your meal!"
+
+def handle_prompt(prompt, df, knowledge_base, llm, conversation_chain):
     if prompt.lower().startswith("how to"):
         return generate_recipe(prompt, llm)
     else:
-        return process_query(df, knowledge_base, prompt)
+        response = process_query(df, knowledge_base, prompt, llm)
+        conversation_chain.predict(input=prompt)
+        return response
 
 if __name__ == '__main__':
     st.set_page_config(page_title="Chat with Spinneys AI", page_icon=":shark:", layout="wide")
@@ -115,7 +99,21 @@ if __name__ == '__main__':
                     df, knowledge_base = process_csv(csv_file)
                     st.session_state.df = df
                     st.session_state.knowledge_base = knowledge_base
-                    st.session_state.llm = create_model_and_tokenizer()
+                    st.session_state.llm = get_llm()
+                    st.session_state.conversation_chain = ConversationChain(
+                        prompt=PromptTemplate(
+                            input_variables=["history", "input"],
+                            template="""The following is a friendly conversation between a human and an AI. The AI is talkative and provides lots of specific details from its context. If the AI does not know the answer to a question, it truthfully says it does not know.
+
+Current conversation:
+{history}
+Human: {input}
+AI Assistant:"""
+                        ),
+                        llm=st.session_state.llm,
+                        verbose=True,
+                        memory=ConversationBufferMemory(ai_prefix="AI Assistant")
+                    )
                 st.success("CSV successfully uploaded and processed!")
         else:
             st.write("CSV file already uploaded and processed!")
@@ -135,7 +133,13 @@ if __name__ == '__main__':
                 st.markdown(prompt)
 
             if 'df' in st.session_state:
-                response = handle_prompt(prompt, st.session_state.df, st.session_state.knowledge_base, st.session_state.llm)
+                response = handle_prompt(
+                    prompt,
+                    st.session_state.df,
+                    st.session_state.knowledge_base,
+                    st.session_state.llm,
+                    st.session_state.conversation_chain
+                )
                 with st.chat_message("assistant"):
                     st.markdown(response)
                 st.session_state.messages.append({"role": "assistant", "content": response})
