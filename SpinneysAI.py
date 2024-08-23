@@ -1,3 +1,5 @@
+pip install git+https://github.com/huggingface/peft.git
+
 import pandas as pd
 import streamlit as st
 from langchain.embeddings import HuggingFaceEmbeddings
