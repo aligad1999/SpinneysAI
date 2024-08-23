@@ -2,13 +2,73 @@ import pandas as pd
 import streamlit as st
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain import FAISS
-from langchain.llms import HuggingFaceHub
-import fuzzywuzzy
 from fuzzywuzzy import process
-from langchain.chains import ConversationChain
-from langchain.memory import ConversationBufferMemory
-from langchain_core.prompts.prompt import PromptTemplate
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from peft import LoraConfig
 
+# Fine-tuning model setup
+model_name = "NousResearch/Llama-2-7b-chat-hf"
+lora_r = 64
+lora_alpha = 16
+lora_dropout = 0.1
+use_4bit = True
+bnb_4bit_compute_dtype = "float16"
+bnb_4bit_quant_type = "nf4"
+use_nested_quant = False
+
+# TrainingArguments parameters
+output_dir = "./results"
+num_train_epochs = 1
+fp16 = False
+bf16 = False
+per_device_train_batch_size = 4
+per_device_eval_batch_size = 4
+gradient_accumulation_steps = 1
+gradient_checkpointing = True
+max_grad_norm = 0.3
+learning_rate = 2e-4
+weight_decay = 0.001
+optim = "paged_adamw_32bit"
+lr_scheduler_type = "cosine"
+max_steps = -1
+warmup_ratio = 0.03
+group_by_length = True
+save_steps = 0
+logging_steps = 25
+device_map = {"": 0}
+
+compute_dtype = getattr(torch, bnb_4bit_compute_dtype)
+bnb_config = BitsAndBytesConfig(
+    load_in_4bit=use_4bit,
+    bnb_4bit_quant_type=bnb_4bit_quant_type,
+    bnb_4bit_compute_dtype=compute_dtype,
+    bnb_4bit_use_double_quant=use_nested_quant,
+)
+
+# Load base model and tokenizer
+model = AutoModelForCausalLM.from_pretrained(
+    model_name,
+    quantization_config=bnb_config,
+    device_map=device_map
+)
+model.config.use_cache = False
+model.config.pretraining_tp = 1
+tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+tokenizer.pad_token = tokenizer.eos_token
+tokenizer.padding_side = "right"
+
+# Load LoRA configuration
+peft_config = LoraConfig(
+    lora_alpha=lora_alpha,
+    lora_dropout=lora_dropout,
+    r=lora_r,
+    bias="none",
+    task_type="CAUSAL_LM",
+)
+max_seq_length = 512
+
+# Functions from the original Streamlit app
 def process_csv(file):
     df = pd.read_csv(file, encoding="latin-1")
     df['product_title'] = df['Product Name'].fillna('').astype(str).str.lower().str.strip()
@@ -17,15 +77,25 @@ def process_csv(file):
     knowledge_base = FAISS.from_texts(texts, embeddings)
     return df, knowledge_base
 
-def get_llm():
-    api_key = "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"
-    return HuggingFaceHub(
-        repo_id="NousResearch/Llama-2-7b-chat-hf",
-        model_kwargs={"temperature": 0.5, "max_length": 1024},
-        huggingfacehub_api_token=api_key
+def get_response(text, tokenizer=tokenizer, model=model):
+    input_ids = tokenizer(text, return_tensors="pt").input_ids
+    inputs = input_ids.to(model.device)
+    input_len = inputs.shape[-1]
+    generate_ids = model.generate(
+        inputs,
+        top_p=0.9,
+        temperature=0.3,
+        max_length=2048 - input_len,
+        min_length=input_len + 4,
+        repetition_penalty=1.2,
+        do_sample=True,
     )
+    response = tokenizer.batch_decode(
+        generate_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True
+    )[0]
+    return response
 
-def process_query(df, knowledge_base, query, llm):
+def process_query(df, knowledge_base, query):
     docs = knowledge_base.similarity_search(query, k=10)
     results = []
     seen_titles = set()
@@ -47,40 +117,21 @@ def process_query(df, knowledge_base, query, llm):
     else:
         return "No matching products found."
 
-def generate_recipe(prompt, llm):
-    formatted_prompt = (
-        "You are a professional chef and recipe generator. Your task is to create a detailed, clear, and concise recipe based on the user's request. Please ensure the response is well-structured and includes the following sections without any additional commentary:\n\n"
-        "- **Ingredients**: List all necessary ingredients with exact quantities.\n"
-        "- **Equipment**: List all required equipment.\n"
-        "- **Instructions**: Provide clear, step-by-step cooking instructions.\n"
-        "- **Tips**: Offer any useful tips, variations, or serving suggestions.\n\n"
-        "Please deliver the recipe in a professional tone, free of any unnecessary content or extraneous formatting instructions. Focus solely on the recipe details.\n\n"
-        "Request: {}"
-    ).format(prompt)
+def handle_prompt(prompt, df=None, knowledge_base=None):
+    food_keywords = ["recipe", "cook", "bake", "grill", "fry", "boil", "juice", "smoothie", "ingredient", "dish","how to make","generate","give me "]
 
-    response = llm(formatted_prompt)
-    sections = ["Ingredients", "Equipment", "Instructions", "Tips"]
-    final_response = []
+    if not any(keyword in prompt.lower() for keyword in food_keywords):
+        if df is not None and knowledge_base is not None:
+            return process_query(df, knowledge_base, prompt)
+        return "I apologize, but I'm only able to provide recipes and information related to food and juices."
 
-    for section in sections:
-        start_index = response.find(f"**{section}**:")
-        if start_index != -1:
-            end_index = len(response)
-            for next_section in sections[sections.index(section) + 1:]:
-                next_index = response.find(f"**{next_section}**:", start_index)
-                if next_index != -1:
-                    end_index = min(end_index, next_index)
-            section_content = response[start_index:end_index].strip()
-            final_response.append(section_content)
+    expert_prompt = f"You are a master chef and food expert. Only answer with detailed recipes related to food or juices. Do not answer any other queries. {prompt}"
+    response = get_response(expert_prompt)
 
-    formatted_response = "\n\n".join(final_response)
-    return f"Here is your recipe:\n\n{response}\n\nEnjoy your meal!"
+    if not any(keyword in response.lower() for keyword in food_keywords):
+        return "I apologize, but I'm only able to provide recipes and information related to food and juices."
 
-def handle_prompt(prompt, df, knowledge_base, llm):
-    if prompt.lower().startswith("how to"):
-        return generate_recipe(prompt, llm)
-    else:
-        return process_query(df, knowledge_base, prompt,llm)
+    return response
 
 if __name__ == '__main__':
     st.set_page_config(page_title="Chat with Spinneys AI", page_icon=":shark:", layout="wide")
@@ -90,8 +141,6 @@ if __name__ == '__main__':
 
     with col1:
         st.header("Upload CSV")
-
-        # Check if the CSV data is already in session_state
         if 'df' not in st.session_state or 'knowledge_base' not in st.session_state:
             csv_file = st.file_uploader("Upload your CSV File", type="csv")
             
@@ -100,7 +149,6 @@ if __name__ == '__main__':
                     df, knowledge_base = process_csv(csv_file)
                     st.session_state.df = df
                     st.session_state.knowledge_base = knowledge_base
-                    st.session_state.llm = get_llm()
                 st.success("CSV successfully uploaded and processed!")
         else:
             st.write("CSV file already uploaded and processed!")
@@ -121,10 +169,12 @@ if __name__ == '__main__':
                 st.markdown(prompt)
 
             if 'df' in st.session_state:
-                response = handle_prompt(prompt, st.session_state.df, st.session_state.knowledge_base, st.session_state.llm)
+                response = handle_prompt(prompt, st.session_state.df, st.session_state.knowledge_base)
                 with st.chat_message("assistant"):
                     st.markdown(response)
                 st.session_state.messages.append({"role": "assistant", "content": response})
             else:
+                response = handle_prompt(prompt)
                 with st.chat_message("assistant"):
-                    st.markdown("Please upload a CSV first.")
+                    st.markdown(response)
+                st.session_state.messages.append({"role": "assistant", "content": response})
