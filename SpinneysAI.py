@@ -20,7 +20,7 @@ def process_csv(file):
 def get_llm():
     api_key = "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"
     return HuggingFaceHub(
-        repo_id="gpt2-xl",
+        repo_id="NousResearch/Llama-2-7b-chat-hf",
         model_kwargs={"temperature": 0.5, "max_length": 1024},
         huggingfacehub_api_token=api_key
     )
